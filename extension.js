@@ -35,7 +35,9 @@ define(function(require, exports, module) {
 							EditorEditors.session.helper(session.data, true);
 						}
 						
-						Extension.getClosures(storage.split, session.data);
+						setTimeout(function() {
+							Extension.getClosures(storage.split, session.data);
+						}, 10);
 					}
 				}
 			});
@@ -69,6 +71,8 @@ define(function(require, exports, module) {
 									name = token.value + name;
 								} else if (token.type == "text" && token.value.match(/^\s*\,\s*$/)) {
 									name = ', ' + name;
+								} else if (token.type == "text" && token.value.match(/^\s*\&\s*$/)) {
+									name = '&' + name;
 								} else {
 									closure.push({
 										pos: range.start,
@@ -103,12 +107,6 @@ define(function(require, exports, module) {
 			} else {
 				$helper.find('ul').append('<li>Closure helper</li>');
 			}
-		},
-		show: function(split) {
-			
-		},
-		hide: function(split) {
-			
 		}
 	});
 
