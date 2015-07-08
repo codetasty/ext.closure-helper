@@ -66,17 +66,18 @@ define(function(require, exports, module) {
 							iterator = new TokenIterator(session, range.start.row, range.start.column);
 							while (token = iterator.stepBackward()) {
 								if (token.type == "text" && token.value.match(/^\s+$/)) {
-									continue;
+									name = ' ' + name;
 								} else if (token.type == 'variable.language') {
 									name = token.value + name;
-								} else if (token.type == "text" && token.value.match(/^\s*\,\s*$/)) {
-									name = ', ' + name;
-								} else if (token.type == "text" && token.value.match(/^\s*\&\s*$/)) {
-									name = '&' + name;
+								} else if (token.type == "text" && !token.value.match(/\;/)) {
+									trimmed = $.trim(token.value) == ',' ? ', ' : token.value;
+									name = trimmed + name;
+								} else if (token.type == "keyword" || token.type == "variable" || token.type == "string" || (token.type == "paren.lparen" && token.value != '{') || (token.type == "paren.rparen" && token.value != '}')) {
+									name = token.value + name;
 								} else {
 									closure.push({
 										pos: range.start,
-										name: name
+										name: $.trim(name)
 									});
 									break;
 								}
@@ -100,6 +101,7 @@ define(function(require, exports, module) {
 					$item.click(function() {
 						session.selection.moveCursorTo($(this).data('pos').row, $(this).data('pos').column);
 						session.selection.clearSelection();
+						editor.scrollToLine($(this).data('pos').row, false,  true);
 					});
 					
 					$helper.find('ul').append($item);
