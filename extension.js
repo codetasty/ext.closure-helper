@@ -51,19 +51,21 @@ define(function(require, exports, module) {
 			var range;
 			var iterator;
 			var name;
+			var ended;
 			
 			for (var i = 0; i <= cursor.row; i++) {
 				if (session.foldWidgets && session.foldWidgets[i] == "start") {
 					range = session.getFoldWidgetRange(i);
-					
 					if (!range) {
 						continue;
 					}
 					
-					if (range.start.row < cursor.row || range.start.column <= cursor.column) {
+					if (range.start.row < cursor.row || (range.start.row == cursor.row && range.start.column <= cursor.column)) {
 						if (range.end.row > cursor.row || (range.end.row == cursor.row && range.end.column >= cursor.column)) {
 							name = '';
 							iterator = new TokenIterator(session, range.start.row, range.start.column);
+							ended = false;
+							
 							while (token = iterator.stepBackward()) {
 								if (token.type == "text" && token.value.match(/^\s+$/)) {
 									name = ' ' + name;
@@ -72,17 +74,24 @@ define(function(require, exports, module) {
 								} else if (token.type == "text" && !token.value.match(/\;/)) {
 									trimmed = $.trim(token.value) == ',' ? ', ' : token.value;
 									name = trimmed + name;
-								} else if (token.type == "keyword" || token.type == "variable" || token.type == "string" || (token.type == "paren.lparen" && token.value != '{') || (token.type == "paren.rparen" && token.value != '}')) {
+								} else if (token.type == "keyword" || token.type == "variable" || token.type == "string" || token.type == "constant.numeric" || (token.type == "paren.lparen" && token.value != '{') || (token.type == "paren.rparen" && token.value != '}')) {
 									name = token.value + name;
 								} else {
 									closure.push({
 										pos: range.start,
 										name: $.trim(name)
 									});
+									ended = true;
 									break;
 								}
 							}
 							
+							if (!ended) {
+								closure.push({
+									pos: range.start,
+									name: $.trim(name)
+								});
+							}
 						}
 					}
 				}
