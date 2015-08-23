@@ -66,6 +66,8 @@ define(function(require, exports, module) {
 							iterator = new TokenIterator(session, range.start.row, range.start.column);
 							ended = false;
 							
+							var inParen = 0;
+							
 							while (token = iterator.stepBackward()) {
 								if (token.type == "text" && token.value.match(/^\s+$/)) {
 									name = ' ' + name;
@@ -74,7 +76,12 @@ define(function(require, exports, module) {
 								} else if (token.type == "text" && !token.value.match(/\;/)) {
 									trimmed = $.trim(token.value) == ',' ? ', ' : token.value;
 									name = trimmed + name;
-								} else if (token.type == "keyword" || token.type == "variable" || token.type == "string" || token.type == "constant.numeric" || (token.type == "paren.lparen" && token.value != '{') || (token.type == "paren.rparen" && token.value != '}')) {
+								} else if (token.type == "keyword" || token.type == "keyword.operator" || token.type == "variable" || token.type == "string" || token.type == "constant.numeric") {
+									name = token.value + name;
+								} else if ((token.type == "paren.lparen" && token.value != '{') || (token.type == "paren.rparen" && token.value != '}')) {
+									inParen += token.value == ')' || token.value == ']' ? 1 : -1;
+									name = token.value + name;
+								} else if (inParen > 0) {
 									name = token.value + name;
 								} else {
 									closure.push({
