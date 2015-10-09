@@ -43,7 +43,12 @@ define(function(require, exports, module) {
 			});
 		},
 		_modes: ['less', 'scss'],
+		_checking: false,
 		getClosures: function(split, session) {
+			if (this._checking) {
+				return false;
+			}
+			
 			var editor = EditorEditors.getEditor(split);
 			var cursor = editor.getCursorPosition();
 			
@@ -53,8 +58,10 @@ define(function(require, exports, module) {
 			var name;
 			var ended;
 			
+			this._checking = true;
+			
 			for (var i = 0; i <= cursor.row; i++) {
-				if (session.foldWidgets && session.foldWidgets[i] == "start") {
+				if (session.foldWidgets && (session.foldWidgets[i] == "start" || session.foldWidgets[i] == null)) {
 					range = session.getFoldWidgetRange(i);
 					if (!range) {
 						continue;
@@ -99,6 +106,8 @@ define(function(require, exports, module) {
 									name: $.trim(name)
 								});
 							}
+						} else {
+							i = range.end.row;
 						}
 					}
 				}
@@ -107,6 +116,8 @@ define(function(require, exports, module) {
 			var $helper = EditorSplit.getSplit(split).find('.editor-helper');
 			
 			$helper.html('<ul></ul>');
+			
+			this._checking = false;
 			
 			if (closure.length) {
 				closure.forEach(function(obj) {
