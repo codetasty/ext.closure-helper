@@ -10,7 +10,7 @@ define(function(require, exports, module) {
 	var TokenIterator = require("ace/token_iterator").TokenIterator;
 	
 	var Extension = ExtensionManager.register({
-		name: 'closure-compiler',
+		name: 'closure-helper',
 	}, {
 		init: function() {
 			var self = this;
@@ -21,7 +21,7 @@ define(function(require, exports, module) {
 						EditorEditors.session.helper(e.session.data, true);
 					}
 					
-					Extension.getClosures(e.split, e.session.data);
+					Extension.getClosures(e.split, e.session.data, e.session.mode);
 				}
 			});
 			
@@ -36,32 +36,31 @@ define(function(require, exports, module) {
 						}
 						
 						setTimeout(function() {
-							Extension.getClosures(storage.split, session.data);
+							Extension.getClosures(storage.split, session.data, session.mode);
 						}, 10);
 					}
 				}
 			});
 		},
-		_modes: ['less', 'scss'],
+		_modes: ['less', 'scss', 'html'],
 		_checking: false,
-		getClosures: function(split, session) {
-			if (this._checking) {
-				return false;
-			}
-			
-			var editor = EditorEditors.getEditor(split);
-			var cursor = editor.getCursorPosition();
-			
-			var closure = [];
-			var range;
-			var iterator;
-			var name;
-			var ended;
-			
-			this._checking = true;
-			
-			for (var i = 0; i <= cursor.row; i++) {
-				if (session.foldWidgets && (session.foldWidgets[i] == "start" || session.foldWidgets[i] == null)) {
+		detector: {
+			less: function(editor, cursor, session) {
+				var closure = [];
+				var range;
+				var iterator;
+				var name;
+				var ended;
+				
+				if (!session.foldWidgets) {
+					return closure;
+				}
+				
+				for (var i = 0; i <= cursor.row; i++) {
+					if (session.foldWidgets[i] === "") {
+						continue;
+					}
+					
 					range = session.getFoldWidgetRange(i);
 					if (!range) {
 						continue;
@@ -80,12 +79,14 @@ define(function(require, exports, module) {
 									name = ' ' + name;
 								} else if (token.type == 'variable.language') {
 									name = token.value + name;
-								} else if (token.type == "text" && !token.value.match(/\;/)) {
+								} else if (token.type == 'identifier') {
+									name = token.value + name;
+								} else if (token.type == "text" && !token.value.match(/\;/) && !token.value.match(/(\{|\})/)) {
 									trimmed = $.trim(token.value) == ',' ? ', ' : token.value;
 									name = trimmed + name;
-								} else if (token.type == "keyword" || token.type == "keyword.operator" || token.type == "variable" || token.type == "string" || token.type == "constant.numeric") {
+								} else if (['keyword', 'keyword.operator', 'variable', 'string', 'constant.numeric', 'support.type.unknownProperty', 'support.function'].indexOf(token.type) !== -1) {
 									name = token.value + name;
-								} else if ((token.type == "paren.lparen" && token.value != '{') || (token.type == "paren.rparen" && token.value != '}')) {
+								} else if ((token.type == "paren.lparen" && token.value.trim() != '{') || (token.type == "paren.rparen" && token.value.trim() != '}')) {
 									inParen += token.value == ')' || token.value == ']' ? 1 : -1;
 									name = token.value + name;
 								} else if (inParen > 0) {
@@ -111,7 +112,74 @@ define(function(require, exports, module) {
 						}
 					}
 				}
+				
+				return closure;
+			},
+			scss: function() {
+				return this.less.call(this, arguments);
+			},
+			html: function(editor, cursor, session) {
+				var closure = [];
+				var closed = [];
+				var token = null;
+				var lastClass = null;
+				var tag = null;
+				
+				var iterator = new TokenIterator(session, cursor.row, cursor.column);
+				
+				while (token = iterator.stepBackward()) {
+					if (token.type == 'string.attribute-value.xml') {
+						iterator.stepBackward();
+						
+						if (iterator.stepBackward().value == 'class') {
+							lastClass = token.value.replace(/(\'|\")/gi, '');
+						}
+					}
+					
+					if (token.type != 'meta.tag.tag-name.xml') {
+						continue;
+					}
+					
+					if (token.value == 'body' || token.value == 'html') {
+						break;
+					}
+					
+					if (iterator.stepBackward().type == 'meta.tag.punctuation.end-tag-open.xml') {
+						closed.push(token.value);
+					} else {
+						if (closed.length && closed[closed.length-1] == token.value) {
+							closed.pop();
+						} else {
+							var tag = $.trim(token.value);
+							
+							closure.push({
+								pos: {
+									row: iterator.getCurrentTokenRow(),
+									column: 0
+								},
+								name: (tag == 'div' && lastClass ? '' : tag) + (lastClass ? '.' + lastClass : '')
+							});
+						}
+					}
+					
+					lastClass = null;
+				}
+				
+				
+				return closure.reverse();
 			}
+		},
+		getClosures: function(split, session, mode) {
+			if (this._checking) {
+				return false;
+			}
+			
+			var editor = EditorEditors.getEditor(split);
+			var cursor = editor.getCursorPosition();
+			
+			this._checking = true;
+			
+			var closure = this.detector[mode](editor, cursor, session);
 			
 			var $helper = EditorSplit.getSplit(split).find('.editor-helper');
 			
