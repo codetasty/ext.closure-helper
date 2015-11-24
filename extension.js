@@ -118,6 +118,7 @@ define(function(require, exports, module) {
 			scss: function() {
 				return this.less.call(this, arguments);
 			},
+			_htmlVoidTags: ['area', 'base', 'br', 'col', 'command', 'embed', 'hr', 'img', 'input', 'keygen', 'link', 'meta', 'param', 'source', 'track', 'wbr'],
 			html: function(editor, cursor, session) {
 				var closure = [];
 				var closed = [];
@@ -142,6 +143,10 @@ define(function(require, exports, module) {
 					
 					if (token.value == 'body' || token.value == 'html') {
 						break;
+					}
+					
+					if (this._htmlVoidTags.indexOf(token.value.toLowerCase()) !== -1) {
+						continue;
 					}
 					
 					if (iterator.stepBackward().type == 'meta.tag.punctuation.end-tag-open.xml') {
