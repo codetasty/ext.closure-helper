@@ -52,7 +52,7 @@ define(function(require, exports, module) {
 				var name;
 				var ended;
 				
-				if (!session.foldWidgets) {
+				if (!session || !session.foldWidgets) {
 					return closure;
 				}
 				
@@ -116,7 +116,7 @@ define(function(require, exports, module) {
 				return closure;
 			},
 			scss: function() {
-				return this.less.call(this, arguments);
+				return this.less.apply(this, arguments);
 			},
 			_htmlVoidTags: ['area', 'base', 'br', 'col', 'command', 'embed', 'hr', 'img', 'input', 'keygen', 'link', 'meta', 'param', 'source', 'track', 'wbr'],
 			html: function(editor, cursor, session) {
