@@ -42,7 +42,7 @@ define(function(require, exports, module) {
 				}
 			});
 		},
-		_modes: ['less', 'scss', 'html'],
+		_modes: ['less', 'scss', 'html', 'php'],
 		_checking: false,
 		detector: {
 			less: function(editor, cursor, session) {
@@ -172,6 +172,9 @@ define(function(require, exports, module) {
 				
 				
 				return closure.reverse();
+			},
+			php: function() {
+				return this.html.apply(this, arguments);
 			}
 		},
 		getClosures: function(split, session, mode) {
@@ -196,7 +199,7 @@ define(function(require, exports, module) {
 				closure.forEach(function(obj) {
 					$item = $('<li></li>');
 					
-					$item.html(obj.name).data('pos', obj.pos);
+					$item.html(obj.name + " ").data('pos', obj.pos); //add space if user selects tree
 					
 					$item.click(function() {
 						session.selection.moveCursorTo($(this).data('pos').row, $(this).data('pos').column);
