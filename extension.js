@@ -180,7 +180,7 @@ define(function(require, exports, module) {
 		getClosures: function(split, session, mode) {
 			this.clearDeffer('closures');
 			
-			if (this._checking) {
+			if (this._checking || !session) {
 				return false;
 			}
 			
