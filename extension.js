@@ -3,6 +3,7 @@ define(function(require, exports, module) {
 	
 	var Fn = require('code/fn');
 	
+	var Editor = require('modules/editor/editor');
 	var EditorEditors = require('modules/editor/ext/editors');
 	var EditorSession = require('modules/editor/ext/session');
 	var EditorSplit = require('modules/editor/ext/split');
@@ -25,6 +26,14 @@ define(function(require, exports, module) {
 				}
 			});
 			
+			EditorSession.on('focus', function(e) {
+				if (self._modes.indexOf(e.session.mode) !== -1) {
+					Extension.deffer('closures', function() {
+						Extension.getClosures(e.storage.split, e.session.data, e.session.mode);
+					}, 200);
+				}
+			});
+			
 			EditorEditors.on('codetools.cursorchange', function(e) {
 				var storage = EditorSession.getStorage().sessions[e.fileId];
 				var session = EditorSession.sessions[e.fileId];
@@ -42,7 +51,7 @@ define(function(require, exports, module) {
 				}
 			});
 		},
-		_modes: ['less', 'scss', 'html', 'php'],
+		_modes: ['less', 'scss', 'html', 'php', 'javascript'],
 		_checking: false,
 		detector: {
 			less: function(editor, cursor, session) {
@@ -137,7 +146,7 @@ define(function(require, exports, module) {
 						}
 					}
 					
-					if (token.type != 'meta.tag.tag-name.xml') {
+					if (token.type != 'meta.tag.tag-name.xml' && token.type != 'meta.tag.anchor.tag-name.xml') {
 						continue;
 					}
 					
@@ -157,6 +166,10 @@ define(function(require, exports, module) {
 						} else {
 							var tag = $.trim(token.value);
 							
+							if (tag == 'svg') {
+								closure = [];
+							}
+							
 							closure.push({
 								pos: {
 									row: iterator.getCurrentTokenRow(),
@@ -175,12 +188,116 @@ define(function(require, exports, module) {
 			},
 			php: function() {
 				return this.html.apply(this, arguments);
-			}
+			},
+			javascript: function(editor, cursor, session) {
+				var closure = [];
+				var range;
+				var iterator;
+				var name;
+				var ended;
+				
+				if (!session || !session.foldWidgets) {
+					return closure;
+				}
+				
+				for (var i = 0; i <= cursor.row; i++) {
+					if (session.foldWidgets[i] === "") {
+						continue;
+					}
+					
+					range = session.getFoldWidgetRange(i);
+					if (!range) {
+						continue;
+					}
+					
+					if (range.start.row < cursor.row || (range.start.row == cursor.row && range.start.column <= cursor.column)) {
+						if (range.end.row > cursor.row || (range.end.row == cursor.row && range.end.column >= cursor.column)) {
+							name = '';
+							iterator = new TokenIterator(session, range.start.row, range.start.column);
+							ended = false;
+							
+							var inParen = 0;
+							var possibleTotal = 20;
+							var possible = possibleTotal;
+							var isNameNext = false;
+							var isVariable = false;
+							var isProperty = false;
+							var closedParens = false;
+							var nextMustType = null;
+							
+							while (token = iterator.stepBackward()) {
+								if (!possible) {
+									break;
+								}
+								
+								if (token.type == 'punctuation.operator' && (token.value == ';' || token.value == ',')) {
+									break;
+								} else if (isNameNext && token.type != 'text') {
+									if (nextMustType && nextMustType != token.type) {
+										break;
+									}
+									
+									name = token.value + (token.type == 'entity.name.function' ? '()' : '') + name;
+									
+									if (isVariable) {
+										name = 'var ' + name;
+									} else if (isProperty) {
+										name = '.' + name;
+									}
+									
+									if (token.type != 'punctuation.operator') {
+										nextMustType = 'punctuation.operator';
+									} else {
+										nextMustType = null;
+									}
+								} else if (token.type == 'punctuation.operator' && token.value == ':') {
+									isNameNext = true;
+									isProperty = true;
+								} else if (token.type == 'keyword.operator' && token.value == '=') {
+									isNameNext = true;
+									isVariable = true;
+								} else if (token.type == "paren.lparen" || token.type == "paren.rparen") {
+									inParen += token.value == ')' || token.value == ']' || token.value == '}' ? 1 : -1;
+									
+									if (inParen === 0) {
+										closedParens = true;
+									}
+									
+									if (token.value == '(' && possible == possibleTotal) {
+										isNameNext = true;
+									}
+								} else if (token.type == 'keyword' && closedParens) {
+									isNameNext = true;
+									iterator.stepForward();
+								} else if (token.type == 'identifier' && possible == possibleTotal) {
+									name = token.value + '()';
+									isNameNext = true;
+								}
+								
+								if (token.type != 'text') {
+									possible--;
+								}
+							}
+							
+							if (!ended && name) {
+								closure.push({
+									pos: range.start,
+									name: name
+								});
+							}
+						} else {
+							i = range.end.row;
+						}
+					}
+				}
+				
+				return closure;
+			},
 		},
 		getClosures: function(split, session, mode) {
 			this.clearDeffer('closures');
 			
-			if (this._checking || !session) {
+			if (this._checking || !session || !EditorSession.sessions[session.fileId].focus) {
 				return false;
 			}
 			
@@ -191,9 +308,9 @@ define(function(require, exports, module) {
 			
 			var closure = this.detector[mode](editor, cursor, session);
 			
-			var $helper = EditorSplit.getSplit(split).find('.editor-helper');
+			var $toolbar = Editor.$el.find('.editor-toolbar .toolbar-left');
 			
-			$helper.html('<ul></ul>');
+			$toolbar.children(':not(.sticky)').remove();
 			
 			if (closure.length) {
 				closure.forEach(function(obj) {
@@ -207,10 +324,8 @@ define(function(require, exports, module) {
 						editor.scrollToLine($(this).data('pos').row, false,  true);
 					});
 					
-					$helper.find('ul').append($item);
+					$toolbar.append($item);
 				});
-			} else {
-				$helper.find('ul').append('<li>Closure helper</li>');
 			}
 			
 			this._checking = false;
