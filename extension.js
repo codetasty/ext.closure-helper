@@ -1,7 +1,7 @@
 define(function(require, exports, module) {
-	var ExtensionManager = require('code/extensionManager');
+	var ExtensionManager = require('core/extensionManager');
 	
-	var Fn = require('code/fn');
+	var Fn = require('core/fn');
 	
 	var Editor = require('modules/editor/editor');
 	var EditorEditors = require('modules/editor/ext/editors');
