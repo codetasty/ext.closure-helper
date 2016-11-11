@@ -16,40 +16,31 @@ define(function(require, exports, module) {
 		init: function() {
 			var self = this;
 			
-			EditorSession.on('active', function(e) {
-				if (self._modes.indexOf(e.session.mode) !== -1) {
-					if (!e.session.data.editorHelper) {
-						EditorEditors.session.helper(e.session.data, true);
-					}
-					
-					Extension.getClosures(e.split, e.session.data, e.session.mode);
-				}
-			});
+			EditorSession.on('focus', this.onSessionFocus);
+			EditorEditors.on('codetools.cursorchange', this.onCursorChange);
+		},
+		destroy: function() {
+			EditorSession.off('focus', this.onSessionFocus);
+			EditorEditors.off('codetools.cursorchange', this.onCursorChange);
+		},
+		onSessionFocus: function(e) {
+			if (Extension._modes.indexOf(e.session.mode) !== -1) {
+				Extension.deffer('closures', function() {
+					Extension.getClosures(e.storage.split, e.session.data, e.session.mode);
+				}, 200);
+			}
+		},
+		onCursorChange: function(e) {
+			var storage = EditorSession.getStorage().sessions[e.fileId];
+			var session = EditorSession.sessions[e.fileId];
 			
-			EditorSession.on('focus', function(e) {
-				if (self._modes.indexOf(e.session.mode) !== -1) {
+			if (storage && session && storage.active) {
+				if (Extension._modes.indexOf(session.mode) !== -1) {
 					Extension.deffer('closures', function() {
-						Extension.getClosures(e.storage.split, e.session.data, e.session.mode);
+						Extension.getClosures(storage.split, session.data, session.mode);
 					}, 200);
 				}
-			});
-			
-			EditorEditors.on('codetools.cursorchange', function(e) {
-				var storage = EditorSession.getStorage().sessions[e.fileId];
-				var session = EditorSession.sessions[e.fileId];
-				
-				if (storage && session && storage.active) {
-					if (self._modes.indexOf(session.mode) !== -1) {
-						if (!session.data.editorHelper) {
-							EditorEditors.session.helper(session.data, true);
-						}
-						
-						Extension.deffer('closures', function() {
-							Extension.getClosures(storage.split, session.data, session.mode);
-						}, 200);
-					}
-				}
-			});
+			}
 		},
 		_modes: ['less', 'scss', 'html', 'php', 'javascript'],
 		_checking: false,
@@ -332,5 +323,5 @@ define(function(require, exports, module) {
 		}
 	});
 
-	module.exports = Extension;
+	module.exports = Extension.api();
 });
