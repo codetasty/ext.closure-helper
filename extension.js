@@ -17,27 +17,24 @@ define(function(require, exports, module) {
 			var self = this;
 			
 			EditorSession.on('focus', this.onSessionFocus);
-			EditorEditors.on('codetools.cursorchange', this.onCursorChange);
+			EditorEditors.on('session.changeCursor', this.onCursorChange);
 		},
 		destroy: function() {
 			EditorSession.off('focus', this.onSessionFocus);
-			EditorEditors.off('codetools.cursorchange', this.onCursorChange);
+			EditorEditors.off('session.changeCursor', this.onCursorChange);
 		},
-		onSessionFocus: function(e) {
-			if (Extension._modes.indexOf(e.session.mode) !== -1) {
+		onSessionFocus: function(session) {
+			if (Extension._modes.indexOf(session.mode) !== -1) {
 				Extension.deffer('closures', function() {
-					Extension.getClosures(e.storage.split, e.session.data, e.session.mode);
+					Extension.getClosures(session);
 				}, 200);
 			}
 		},
-		onCursorChange: function(e) {
-			var storage = EditorSession.getStorage().sessions[e.fileId];
-			var session = EditorSession.sessions[e.fileId];
-			
-			if (storage && session && storage.active) {
+		onCursorChange: function(session, cursor) {
+			if (session && session.focus) {
 				if (Extension._modes.indexOf(session.mode) !== -1) {
 					Extension.deffer('closures', function() {
-						Extension.getClosures(storage.split, session.data, session.mode);
+						Extension.getClosures(session);
 					}, 200);
 				}
 			}
@@ -285,21 +282,22 @@ define(function(require, exports, module) {
 				return closure;
 			},
 		},
-		getClosures: function(split, session, mode) {
+		getClosures: function(session) {
 			this.clearDeffer('closures');
 			
-			if (this._checking || !session || !EditorSession.sessions[session.fileId].focus) {
+			if (this._checking || !session || !session.focus) {
 				return false;
 			}
 			
 			this._checking = true;
 			
-			var editor = EditorEditors.getEditor(split);
+			var mode = session.mode;
+			var editor = session.editor
 			var cursor = editor.getCursorPosition();
 			
-			var closure = this.detector[mode](editor, cursor, session);
+			var closure = this.detector[mode](editor, cursor, session.data);
 			
-			var $toolbar = Editor.$el.find('.editor-toolbar .toolbar-left');
+			var $toolbar = session.$toolbar.find('.toolbar-left');
 			
 			$toolbar.children(':not(.sticky)').remove();
 			
@@ -310,8 +308,8 @@ define(function(require, exports, module) {
 					$item.html(obj.name + " ").data('pos', obj.pos); //add space if user selects tree
 					
 					$item.click(function() {
-						session.selection.moveCursorTo($(this).data('pos').row, $(this).data('pos').column);
-						session.selection.clearSelection();
+						session.data.selection.moveCursorTo($(this).data('pos').row, $(this).data('pos').column);
+						session.data.selection.clearSelection();
 						editor.scrollToLine($(this).data('pos').row, false,  true);
 					});
 					
