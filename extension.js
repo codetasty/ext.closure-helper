@@ -17,14 +17,17 @@ define(function(require, exports, module) {
 			var self = this;
 			
 			EditorSession.on('focus', this.onSessionFocus);
+			EditorSession.on('close', this.onSessionClose);
 			EditorEditors.on('session.changeCursor', this.onCursorChange);
 		},
 		destroy: function() {
 			EditorSession.off('focus', this.onSessionFocus);
+			EditorSession.off('close', this.onSessionClose);
 			EditorEditors.off('session.changeCursor', this.onCursorChange);
 		},
 		onSessionFocus: function(session) {
 			if (Extension._modes.indexOf(session.mode) !== -1) {
+				Extension._defferSession = session.id;
 				Extension.deffer('closures', function() {
 					Extension.getClosures(session);
 				}, 200);
@@ -33,12 +36,19 @@ define(function(require, exports, module) {
 		onCursorChange: function(session, cursor) {
 			if (session && session.focus) {
 				if (Extension._modes.indexOf(session.mode) !== -1) {
+					Extension._defferSession = session.id;
 					Extension.deffer('closures', function() {
 						Extension.getClosures(session);
 					}, 200);
 				}
 			}
 		},
+		onSessionClose: function(session) {
+			if (Extension._defferSession === session.id) {
+				Extension.clearDeffer('closures');
+			}
+		},
+		_defferSession: null,
 		_modes: ['less', 'scss', 'html', 'php', 'javascript'],
 		_checking: false,
 		detector: {
@@ -285,14 +295,14 @@ define(function(require, exports, module) {
 		getClosures: function(session) {
 			this.clearDeffer('closures');
 			
-			if (this._checking || !session || !session.focus) {
+			if (this._checking || !session || !session.focus || !session.editor) {
 				return false;
 			}
 			
 			this._checking = true;
 			
 			var mode = session.mode;
-			var editor = session.editor
+			var editor = session.editor;
 			var cursor = editor.getCursorPosition();
 			
 			var closure = this.detector[mode](editor, cursor, session.data);
