@@ -213,7 +213,7 @@ define(function(require, exports, module) {
 		}
 		
 		detectorPhp(...args) {
-			return this.html(...args);
+			return this.detectorHtml(...args);
 		}
 		
 		detectorJavascript(editor, cursor, session) {
