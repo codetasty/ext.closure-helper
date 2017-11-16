@@ -335,28 +335,36 @@ define(function(require, exports, module) {
 			var editor = session.editor;
 			var cursor = editor.getCursorPosition();
 			
-			var closure = this['detector' + mode.capitalize()](editor, cursor, session.data);
+			var closures = this['detector' + mode.capitalize()](editor, cursor, session.data);
 			
-			var $toolbar = session.$toolbar.find('.toolbar-left');
+			let items = [];
 			
-			$toolbar.children(':not(.sticky)').remove();
+			// remove old closures from toolbar
+			session.toolbar.removeBy(this.name, 'left');
 			
-			if (closure.length) {
-				let $item;
-				closure.forEach(function(obj) {
-					$item = $('<li></li>');
-					
-					$item.html(obj.name + " ").data('pos', obj.pos); //add space if user selects tree
-					
-					$item.click(function() {
-						session.data.selection.moveCursorTo($(this).data('pos').row, $(this).data('pos').column);
-						session.data.selection.clearSelection();
-						editor.scrollToLine($(this).data('pos').row, false,  true);
-					});
-					
-					$toolbar.append($item);
-				});
+			if (!closures.length) {
+				this._checking = false;
+				return;
 			}
+			
+			closures.forEach(item => {
+				items.push({
+					name: this.name,
+					side: 'left',
+					data: {
+						position: item.pos,
+					},
+					//add space if user selects tree
+					el: $('<li></li>').text(item.name + ' ')[0],
+					onSelect: (item) => {
+						session.data.selection.moveCursorTo(item.data.position.row, item.data.position.column);
+						session.data.selection.clearSelection();
+						editor.scrollToLine(item.data.position.row, false,  true);
+					}
+				});
+			});
+			
+			session.toolbar.add(items);
 			
 			this._checking = false;
 		}
