@@ -355,7 +355,7 @@ define(function(require, exports, module) {
 						position: item.pos,
 					},
 					//add space if user selects tree
-					el: $('<li></li>').text(item.name + ' ')[0],
+					el: $('<li class="select"></li>').text(item.name + ' ')[0],
 					onSelect: (item) => {
 						session.data.selection.moveCursorTo(item.data.position.row, item.data.position.column);
 						session.data.selection.clearSelection();
